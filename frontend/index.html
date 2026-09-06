@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SceneSync AI — Autonomous Pre-Production Copilot</title>
+<meta name="description" content="SceneSync AI: upload a script, get an instant AI-generated scene breakdown, production assets, and cinematic storyboard art." />
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/js/all.min.js" crossorigin="anonymous"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          display: ['"Space Grotesk"', 'sans-serif'],
+          body: ['Inter', 'sans-serif'],
+        },
+        colors: {
+          ink: {
+            950: '#050608',
+            900: '#0b0d12',
+            850: '#10131b',
+            800: '#161a24',
+            700: '#20242f',
+            600: '#2c313f',
+          },
+          accent: {
+            violet: '#8b5cf6',
+            cyan: '#22d3ee',
+            amber: '#f59e0b',
+            rose: '#fb7185',
+          }
+        },
+        boxShadow: {
+          glow: '0 0 40px -8px rgba(139, 92, 246, 0.45)',
+          glowCyan: '0 0 40px -8px rgba(34, 211, 238, 0.4)',
+        },
+        animation: {
+          'pulse-slow': 'pulse 3.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+          'float': 'float 6s ease-in-out infinite',
+          'shimmer': 'shimmer 2.2s linear infinite',
+        },
+        keyframes: {
+          float: {
+            '0%, 100%': { transform: 'translateY(0px)' },
+            '50%': { transform: 'translateY(-12px)' },
+          },
+          shimmer: {
+            '0%': { backgroundPosition: '-500px 0' },
+            '100%': { backgroundPosition: '500px 0' },
+          }
+        }
+      }
+    }
+  }
+</script>
+<style>
+  html { scroll-behavior: smooth; }
+  body {
+    background:
+      radial-gradient(1200px 600px at 15% -10%, rgba(139,92,246,0.16), transparent 60%),
+      radial-gradient(1000px 500px at 100% 0%, rgba(34,211,238,0.10), transparent 55%),
+      #050608;
+  }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: #0b0d12; }
+  ::-webkit-scrollbar-thumb { background: #2c313f; border-radius: 8px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3d4457; }
+
+  .grain {
+    position: fixed; inset: 0; pointer-events: none; opacity: 0.045; z-index: 1;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .glass {
+    background: linear-gradient(180deg, rgba(22,26,36,0.7), rgba(11,13,18,0.7));
+    backdrop-filter: blur(18px);
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .film-strip {
+    background-image: repeating-linear-gradient(90deg, rgba(255,255,255,0.08) 0 3px, transparent 3px 18px);
+  }
+  .drop-zone { transition: all .25s ease; }
+  .drop-zone.dragover {
+    border-color: #8b5cf6;
+    background: rgba(139,92,246,0.08);
+    box-shadow: 0 0 60px -10px rgba(139,92,246,0.5);
+  }
+  .shimmer-bar {
+    background: linear-gradient(90deg, #20242f 0%, #3d4457 50%, #20242f 100%);
+    background-size: 1000px 100%;
+    animation: shimmer 2.2s linear infinite;
+  }
+  .scene-card { transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease; }
+  .scene-card:hover { transform: translateY(-4px); border-color: rgba(139,92,246,0.5); box-shadow: 0 20px 50px -18px rgba(139,92,246,0.35); }
+  .tab-btn.active { color: #f8fafc; border-color: #8b5cf6; background: rgba(139,92,246,0.12); }
+  .chip { border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); }
+  input[type=file] { display: none; }
+  .gradient-text {
+    background: linear-gradient(90deg, #a78bfa, #22d3ee 60%, #f59e0b);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .clapper { animation: float 5s ease-in-out infinite; }
+  dialog::backdrop { background: rgba(0,0,0,0.75); backdrop-filter: blur(4px); }
+</style>
+</head>
+<body class="min-h-screen text-slate-200 font-body relative overflow-x-hidden">
+<div class="grain"></div>
+
+<!-- NAVBAR -->
+<header class="sticky top-0 z-40 border-b border-white/5 backdrop-blur-xl bg-ink-950/70">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 via-fuchsia-500 to-cyan-400 grid place-items-center shadow-glow">
+        <i class="fa-solid fa-clapperboard text-ink-950 text-lg"></i>
+      </div>
+      <div>
+        <p class="font-display font-bold tracking-tight text-lg leading-none text-white">SceneSync<span class="text-accent-violet">AI</span></p>
+        <p class="text-[11px] text-slate-500 leading-none mt-1">Autonomous Pre‑Production Copilot</p>
+      </div>
+    </div>
+    <div class="hidden md:flex items-center gap-6 text-sm text-slate-400">
+      <a href="#pipeline" class="hover:text-white transition-colors">Pipeline</a>
+      <a href="#results" class="hover:text-white transition-colors">Results</a>
+      <a href="#stack" class="hover:text-white transition-colors">Tech Stack</a>
+    </div>
+    <div class="flex items-center gap-2">
+      <span id="statusPill" class="hidden sm:flex items-center gap-2 text-xs px-3 py-1.5 rounded-full chip text-slate-400">
+        <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span> Checking status…
+      </span>
+    </div>
+  </div>
+</header>
+
+<!-- HERO -->
+<section class="relative max-w-7xl mx-auto px-5 sm:px-8 pt-16 pb-10">
+  <div class="flex flex-col items-center text-center gap-6">
+    <div class="chip rounded-full px-4 py-1.5 text-xs text-accent-cyan flex items-center gap-2">
+      <i class="fa-solid fa-sparkles"></i> Built on Gemini · Vertex AI Imagen 3 · Agent Development Kit
+    </div>
+    <h1 class="font-display text-4xl sm:text-6xl font-bold tracking-tight max-w-4xl leading-[1.05]">
+      From raw script to <span class="gradient-text">storyboard</span>, in one autonomous pass.
+    </h1>
+    <p class="max-w-2xl text-slate-400 text-base sm:text-lg leading-relaxed">
+      Upload a screenplay and a coordinated squad of Gemini-powered agents breaks it into scenes,
+      extracts cast, props, locations & wardrobe, then renders cinematic 16:9 concept art with
+      Vertex AI Imagen 3 — production-ready in minutes, not weeks.
+    </p>
+  </div>
+</section>
+
+<!-- PIPELINE / UPLOAD -->
+<section id="pipeline" class="max-w-5xl mx-auto px-5 sm:px-8 pb-16">
+  <div class="glass rounded-3xl p-6 sm:p-10 shadow-2xl relative overflow-hidden">
+    <div class="absolute -top-24 -right-24 w-72 h-72 bg-accent-violet/20 rounded-full blur-3xl"></div>
+    <div class="absolute -bottom-24 -left-24 w-72 h-72 bg-accent-cyan/10 rounded-full blur-3xl"></div>
+
+    <div class="relative flex flex-col gap-6">
+      <!-- tabs -->
+      <div class="flex gap-2 flex-wrap">
+        <button data-tab="upload" class="tab-btn active text-sm font-medium px-4 py-2 rounded-xl border border-white/10 transition-colors">
+          <i class="fa-solid fa-file-arrow-up mr-2"></i>Upload Script
+        </button>
+        <button data-tab="paste" class="tab-btn text-sm font-medium px-4 py-2 rounded-xl border border-white/10 text-slate-400 transition-colors">
+          <i class="fa-solid fa-align-left mr-2"></i>Paste Text
+        </button>
+      </div>
+
+      <!-- upload panel -->
+      <div id="panel-upload">
+        <label id="dropZone" for="fileInput" class="drop-zone cursor-pointer flex flex-col items-center justify-center gap-3 border-2 border-dashed border-white/10 rounded-2xl py-14 px-6 text-center hover:border-accent-violet/60">
+          <div class="w-14 h-14 rounded-2xl bg-white/5 grid place-items-center clapper">
+            <i class="fa-solid fa-film text-2xl text-accent-cyan"></i>
+          </div>
+          <p class="text-slate-200 font-medium">Drop your script here, or <span class="text-accent-violet underline">browse files</span></p>
+          <p class="text-xs text-slate-500">Supports .pdf, .txt, .fountain, .fdx — up to 15MB</p>
+          <p id="fileNameLabel" class="text-xs text-accent-cyan mt-1 hidden"></p>
+        </label>
+        <input id="fileInput" type="file" accept=".pdf,.txt,.fountain,.fdx" />
+      </div>
+
+      <!-- paste panel -->
+      <div id="panel-paste" class="hidden">
+        <input id="pasteTitle" type="text" placeholder="Script title (optional)" class="w-full mb-3 bg-ink-800/70 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-accent-violet/60" />
+        <textarea id="pasteText" rows="10" placeholder="INT. WAREHOUSE - NIGHT&#10;&#10;Rain hammers the tin roof. MAYA (30s, soaked, resolute) creeps between stacked crates..." class="w-full bg-ink-800/70 border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-accent-violet/60 resize-y"></textarea>
+      </div>
+
+      <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 justify-between">
+        <p class="text-xs text-slate-500 flex items-center gap-2">
+          <i class="fa-solid fa-shield-halved text-accent-cyan"></i>
+          Gemini safety guardrails active on every generation.
+        </p>
+        <button id="runBtn" disabled class="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-violet-600 to-cyan-500 disabled:from-ink-700 disabled:to-ink-700 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-semibold text-sm px-6 py-3 rounded-xl shadow-glow hover:shadow-glowCyan transition-all">
+          <i class="fa-solid fa-wand-magic-sparkles"></i> Run SceneSync Pipeline
+        </button>
+      </div>
+
+      <p id="errorBox" class="hidden text-sm text-rose-300 bg-rose-500/10 border border-rose-500/30 rounded-xl px-4 py-3"></p>
+    </div>
+  </div>
+
+  <!-- pipeline steps visual -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6">
+    <div class="stage-indicator glass rounded-2xl p-4" data-stage="0">
+      <div class="flex items-center gap-2 text-slate-400 text-xs font-medium uppercase tracking-wide"><i class="fa-solid fa-file-lines"></i> Document Processing</div>
+      <div class="mt-3 h-1.5 rounded-full bg-white/5 overflow-hidden"><div class="bar h-full w-0 bg-accent-cyan transition-all duration-700"></div></div>
+    </div>
+    <div class="stage-indicator glass rounded-2xl p-4" data-stage="1">
+      <div class="flex items-center gap-2 text-slate-400 text-xs font-medium uppercase tracking-wide"><i class="fa-solid fa-diagram-project"></i> Scene Breakdown</div>
+      <div class="mt-3 h-1.5 rounded-full bg-white/5 overflow-hidden"><div class="bar h-full w-0 bg-accent-violet transition-all duration-700"></div></div>
+    </div>
+    <div class="stage-indicator glass rounded-2xl p-4" data-stage="2">
+      <div class="flex items-center gap-2 text-slate-400 text-xs font-medium uppercase tracking-wide"><i class="fa-solid fa-people-group"></i> Asset Extraction</div>
+      <div class="mt-3 h-1.5 rounded-full bg-white/5 overflow-hidden"><div class="bar h-full w-0 bg-accent-amber transition-all duration-700"></div></div>
+    </div>
+    <div class="stage-indicator glass rounded-2xl p-4" data-stage="3">
+      <div class="flex items-center gap-2 text-slate-400 text-xs font-medium uppercase tracking-wide"><i class="fa-solid fa-image"></i> Imagen 3 Storyboards</div>
+      <div class="mt-3 h-1.5 rounded-full bg-white/5 overflow-hidden"><div class="bar h-full w-0 bg-accent-rose transition-all duration-700"></div></div>
+    </div>
+  </div>
+  <p id="progressLabel" class="hidden text-center text-sm text-slate-400 mt-4"></p>
+</section>
+
+<!-- RESULTS -->
+<section id="results" class="max-w-7xl mx-auto px-5 sm:px-8 pb-24 hidden">
+  <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
+    <div>
+      <h2 class="font-display text-2xl sm:text-3xl font-bold text-white">Production Breakdown</h2>
+      <p id="resultsSubtitle" class="text-slate-500 text-sm mt-1"></p>
+    </div>
+    <div id="mockBadge" class="hidden chip text-amber-300 text-xs px-3 py-1.5 rounded-full">
+      <i class="fa-solid fa-flask mr-1.5"></i> Simulated mode — connect a Google Cloud project for live Imagen 3
+    </div>
+  </div>
+
+  <!-- aggregate assets -->
+  <div id="aggregateGrid" class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10"></div>
+
+  <!-- scene cards -->
+  <div id="sceneGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"></div>
+</section>
+
+<!-- TECH STACK -->
+<section id="stack" class="max-w-7xl mx-auto px-5 sm:px-8 pb-24">
+  <div class="glass rounded-3xl p-8 sm:p-10">
+    <h3 class="font-display text-xl font-bold text-white mb-6 flex items-center gap-2">
+      <i class="fa-solid fa-layer-group text-accent-violet"></i> Built for the Google Cloud Summer Blockbuster Hackathon
+    </h3>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-5 text-sm">
+      <div class="chip rounded-2xl p-5">
+        <i class="fa-solid fa-robot text-accent-cyan mb-3 text-lg"></i>
+        <p class="font-semibold text-slate-200 mb-1">Agent Development Kit</p>
+        <p class="text-slate-500 leading-relaxed">Native Google ADK agent + FunctionTools, deployable to Vertex AI Agent Engine.</p>
+      </div>
+      <div class="chip rounded-2xl p-5">
+        <i class="fa-solid fa-brain text-accent-violet mb-3 text-lg"></i>
+        <p class="font-semibold text-slate-200 mb-1">Gemini Multi-Step Reasoning</p>
+        <p class="text-slate-500 leading-relaxed">Structured JSON scene breakdown and asset extraction with safety guardrails.</p>
+      </div>
+      <div class="chip rounded-2xl p-5">
+        <i class="fa-solid fa-images text-accent-amber mb-3 text-lg"></i>
+        <p class="font-semibold text-slate-200 mb-1">Vertex AI Imagen 3</p>
+        <p class="text-slate-500 leading-relaxed">Cinematic 16:9 concept art rendered per scene, grounded in extracted context.</p>
+      </div>
+      <div class="chip rounded-2xl p-5">
+        <i class="fa-solid fa-bolt text-accent-rose mb-3 text-lg"></i>
+        <p class="font-semibold text-slate-200 mb-1">FastAPI + Replit</p>
+        <p class="text-slate-500 leading-relaxed">Async job pipeline, zero-config Replit deployment, Secret Manager patterns.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="border-t border-white/5 py-8 text-center text-xs text-slate-600">
+  SceneSync AI — Autonomous Pre-Production Copilot · Built for the Google Cloud Summer Blockbuster Hackathon
+</footer>
+
+<!-- Scene detail dialog -->
+<dialog id="sceneDialog" class="glass rounded-3xl p-0 max-w-3xl w-[92vw] text-slate-200 backdrop:bg-black/70">
+  <div id="sceneDialogContent" class="p-6"></div>
+</dialog>
+
+<script>
+const API_BASE = '';
+let currentTab = 'upload';
+let selectedFile = null;
+let pollTimer = null;
+
+const el = (id) => document.getElementById(id);
+const dropZone = el('dropZone');
+const fileInput = el('fileInput');
+const fileNameLabel = el('fileNameLabel');
+const runBtn = el('runBtn');
+const errorBox = el('errorBox');
+const statusPill = el('statusPill');
+
+// ---- status check ----
+async function checkHealth() {
+  try {
+    const res = await fetch('/api/health');
+    const data = await res.json();
+    statusPill.classList.remove('hidden');
+    if (data.mock_mode) {
+      statusPill.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Simulated mode';
+      statusPill.classList.add('text-amber-300');
+    } else {
+      statusPill.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Live Vertex AI';
+      statusPill.classList.add('text-emerald-300');
+    }
+  } catch (e) {
+    statusPill.classList.remove('hidden');
+    statusPill.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span> Offline';
+  }
+}
+checkHealth();
+
+// ---- tabs ----
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('active'); b.classList.add('text-slate-400'); });
+    btn.classList.add('active');
+    btn.classList.remove('text-slate-400');
+    currentTab = btn.dataset.tab;
+    el('panel-upload').classList.toggle('hidden', currentTab !== 'upload');
+    el('panel-paste').classList.toggle('hidden', currentTab !== 'paste');
+    validateRunButton();
+  });
+});
+
+// ---- file drop ----
+['dragenter', 'dragover'].forEach(evt => dropZone.addEventListener(evt, (e) => { e.preventDefault(); dropZone.classList.add('dragover'); }));
+['dragleave', 'drop'].forEach(evt => dropZone.addEventListener(evt, (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); }));
+dropZone.addEventListener('drop', (e) => {
+  const file = e.dataTransfer.files[0];
+  if (file) { selectedFile = file; fileInput.files = e.dataTransfer.files; onFileChosen(); }
+});
+fileInput.addEventListener('change', () => {
+  selectedFile = fileInput.files[0] || null;
+  onFileChosen();
+});
+function onFileChosen() {
+  if (selectedFile) {
+    fileNameLabel.textContent = `Selected: ${selectedFile.name} (${(selectedFile.size/1024).toFixed(0)} KB)`;
+    fileNameLabel.classList.remove('hidden');
+  }
+  validateRunButton();
+}
+
+el('pasteText').addEventListener('input', validateRunButton);
+
+function validateRunButton() {
+  if (currentTab === 'upload') {
+    runBtn.disabled = !selectedFile;
+  } else {
+    runBtn.disabled = el('pasteText').value.trim().length < 20;
+  }
+}
+
+function showError(msg) {
+  errorBox.textContent = msg;
+  errorBox.classList.remove('hidden');
+}
+function clearError() {
+  errorBox.classList.add('hidden');
+  errorBox.textContent = '';
+}
+
+// ---- run pipeline ----
+runBtn.addEventListener('click', async () => {
+  clearError();
+  runBtn.disabled = true;
+  runBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Launching agents…';
+  resetStageBars();
+  el('progressLabel').classList.remove('hidden');
+  el('progressLabel').textContent = 'Preparing script…';
+
+  try {
+    let jobRes;
+    if (currentTab === 'upload' && selectedFile) {
+      const form = new FormData();
+      form.append('file', selectedFile);
+      jobRes = await fetch('/api/scripts/upload', { method: 'POST', body: form });
+    } else {
+      const title = el('pasteTitle').value.trim();
+      jobRes = await fetch('/api/scripts/analyze-text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ script_text: el('pasteText').value, title: title || undefined }),
+      });
+    }
+
+    if (!jobRes.ok) {
+      const errData = await jobRes.json().catch(() => ({}));
+      throw new Error(errData.detail || `Request failed (${jobRes.status})`);
+    }
+
+    const job = await jobRes.json();
+    pollJob(job.job_id);
+  } catch (e) {
+    showError(e.message || 'Something went wrong launching the pipeline.');
+    resetRunButton();
+  }
+});
+
+function resetRunButton() {
+  runBtn.disabled = false;
+  runBtn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Run SceneSync Pipeline';
+}
+
+function resetStageBars() {
+  document.querySelectorAll('.stage-indicator .bar').forEach(b => b.style.width = '0%');
+}
+
+function updateStageBars(pct) {
+  const stageRanges = [[0, 15], [15, 60], [60, 60], [60, 100]];
+  const bars = document.querySelectorAll('.stage-indicator .bar');
+  bars.forEach((bar, i) => {
+    const [start, end] = stageRanges[i];
+    let localPct = 0;
+    if (pct >= end) localPct = 100;
+    else if (pct <= start) localPct = 0;
+    else localPct = ((pct - start) / (end - start)) * 100;
+    bar.style.width = `${localPct}%`;
+  });
+}
+
+async function pollJob(jobId) {
+  clearInterval(pollTimer);
+  pollTimer = setInterval(async () => {
+    try {
+      const res = await fetch(`/api/jobs/${jobId}`);
+      if (!res.ok) { clearInterval(pollTimer); showError('Lost track of the job. Please try again.'); resetRunButton(); return; }
+      const job = await res.json();
+      el('progressLabel').textContent = `${job.stage} — ${job.progress}%`;
+      updateStageBars(job.progress);
+
+      if (job.status === 'complete') {
+        clearInterval(pollTimer);
+        const resultRes = await fetch(`/api/jobs/${jobId}/result`);
+        const result = await resultRes.json();
+        renderResults(result);
+        resetRunButton();
+        el('progressLabel').textContent = `Done — ${job.scene_count} scenes generated.`;
+      } else if (job.status === 'error') {
+        clearInterval(pollTimer);
+        showError(job.error || 'The pipeline hit an error.');
+        resetRunButton();
+      }
+    } catch (e) {
+      clearInterval(pollTimer);
+      showError('Lost connection while polling job status.');
+      resetRunButton();
+    }
+  }, 900);
+}
+
+// ---- rendering results ----
+function renderResults(result) {
+  const section = el('results');
+  section.classList.remove('hidden');
+  el('resultsSubtitle').textContent = `${result.filename || 'Script'} · ${result.scene_count} scenes detected`;
+  el('mockBadge').classList.toggle('hidden', !result.mock_mode);
+
+  renderAggregate(result.aggregate_assets);
+  renderScenes(result.scenes);
+
+  section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderAggregate(assets) {
+  const grid = el('aggregateGrid');
+  const cards = [
+    { label: 'Cast', icon: 'fa-user-group', color: 'text-accent-cyan', items: assets.cast },
+    { label: 'Props', icon: 'fa-box-open', color: 'text-accent-amber', items: assets.props },
+    { label: 'Locations', icon: 'fa-location-dot', color: 'text-accent-violet', items: assets.locations },
+    { label: 'Wardrobe', icon: 'fa-shirt', color: 'text-accent-rose', items: assets.wardrobe },
+  ];
+  grid.innerHTML = cards.map(c => `
+    <div class="glass rounded-2xl p-5">
+      <div class="flex items-center gap-2 mb-3">
+        <i class="fa-solid ${c.icon} ${c.color}"></i>
+        <p class="text-sm font-semibold text-slate-200">${c.label}</p>
+        <span class="ml-auto text-xs text-slate-500">${c.items.length}</span>
+      </div>
+      <div class="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+        ${c.items.length ? c.items.map(i => `<span class="chip text-[11px] px-2 py-1 rounded-md text-slate-300">${escapeHtml(i)}</span>`).join('') : '<span class="text-xs text-slate-600">None detected</span>'}
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderScenes(scenes) {
+  const grid = el('sceneGrid');
+  grid.innerHTML = scenes.map((s, idx) => sceneCardHtml(s, idx)).join('');
+  grid.querySelectorAll('[data-scene-idx]').forEach(card => {
+    card.addEventListener('click', () => openSceneDialog(scenes[parseInt(card.dataset.sceneIdx, 10)]));
+  });
+}
+
+function imageSrc(scene) {
+  if (!scene.storyboard_image_base64) return null;
+  return `data:${scene.storyboard_mime_type};base64,${scene.storyboard_image_base64}`;
+}
+
+function sceneCardHtml(s, idx) {
+  const src = imageSrc(s);
+  return `
+  <div data-scene-idx="${idx}" class="scene-card glass rounded-2xl overflow-hidden cursor-pointer border border-transparent">
+    <div class="aspect-video bg-ink-800 relative overflow-hidden film-strip">
+      ${src ? `<img src="${src}" alt="${escapeHtml(s.slugline)}" class="w-full h-full object-cover" />` : `<div class="w-full h-full grid place-items-center text-slate-600"><i class="fa-solid fa-image text-3xl"></i></div>`}
+      <span class="absolute top-2 left-2 chip text-[10px] px-2 py-1 rounded-md text-slate-300 backdrop-blur">SCENE ${String(s.scene_number).padStart(2,'0')}</span>
+      <span class="absolute top-2 right-2 chip text-[10px] px-2 py-1 rounded-md ${s.generation_source === 'imagen3' ? 'text-emerald-300' : 'text-amber-300'} backdrop-blur">
+        ${s.generation_source === 'imagen3' ? '<i class="fa-solid fa-bolt"></i> Imagen 3' : '<i class="fa-solid fa-flask"></i> Preview'}
+      </span>
+    </div>
+    <div class="p-4">
+      <p class="font-display font-semibold text-slate-100 text-sm truncate">${escapeHtml(s.slugline)}</p>
+      <p class="text-xs text-slate-500 mt-1">${escapeHtml(s.setting)} · ${escapeHtml(s.time_of_day)} · <span class="italic">${escapeHtml(s.mood)}</span></p>
+      <p class="text-xs text-slate-400 mt-2 line-clamp-2">${escapeHtml(s.summary)}</p>
+      <div class="flex flex-wrap gap-1 mt-3">
+        ${s.assets.cast.slice(0,3).map(c => `<span class="chip text-[10px] px-2 py-0.5 rounded text-slate-400">${escapeHtml(c)}</span>`).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+function openSceneDialog(scene) {
+  const dialog = el('sceneDialog');
+  const src = imageSrc(scene);
+  el('sceneDialogContent').innerHTML = `
+    <div class="flex items-start justify-between mb-4">
+      <div>
+        <p class="text-xs text-accent-cyan font-medium">SCENE ${String(scene.scene_number).padStart(2,'0')}</p>
+        <h3 class="font-display text-xl font-bold text-white mt-1">${escapeHtml(scene.slugline)}</h3>
+        <p class="text-xs text-slate-500 mt-1">${escapeHtml(scene.setting)} · ${escapeHtml(scene.time_of_day)} · ${escapeHtml(scene.mood)}</p>
+      </div>
+      <button id="closeDialogBtn" class="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
+    </div>
+    <div class="aspect-video bg-ink-800 rounded-xl overflow-hidden mb-5 film-strip">
+      ${src ? `<img src="${src}" class="w-full h-full object-cover" />` : `<div class="w-full h-full grid place-items-center text-slate-600"><i class="fa-solid fa-image text-3xl"></i></div>`}
+    </div>
+    <p class="text-sm text-slate-300 leading-relaxed mb-5">${escapeHtml(scene.summary)}</p>
+    <div class="grid sm:grid-cols-2 gap-4 mb-5">
+      ${assetBlock('Cast', scene.assets.cast, 'fa-user-group')}
+      ${assetBlock('Props', scene.assets.props, 'fa-box-open')}
+      ${assetBlock('Locations', scene.assets.locations, 'fa-location-dot')}
+      ${assetBlock('Wardrobe', scene.assets.wardrobe, 'fa-shirt')}
+    </div>
+    ${scene.assets.sfx_notes.length ? assetBlock('SFX / VFX Notes', scene.assets.sfx_notes, 'fa-wave-square') : ''}
+    <div class="mt-5 pt-4 border-t border-white/5">
+      <p class="text-[11px] uppercase tracking-wide text-slate-500 mb-1.5">Imagen 3 Prompt</p>
+      <p class="text-xs text-slate-500 leading-relaxed font-mono">${escapeHtml(scene.storyboard_prompt)}</p>
+    </div>
+  `;
+  el('closeDialogBtn').addEventListener('click', () => dialog.close());
+  dialog.showModal();
+}
+
+function assetBlock(label, items, icon) {
+  return `
+  <div>
+    <p class="text-[11px] uppercase tracking-wide text-slate-500 mb-1.5 flex items-center gap-1.5"><i class="fa-solid ${icon}"></i> ${label}</p>
+    <div class="flex flex-wrap gap-1.5">
+      ${items.length ? items.map(i => `<span class="chip text-[11px] px-2 py-1 rounded-md text-slate-300">${escapeHtml(i)}</span>`).join('') : '<span class="text-xs text-slate-600">None detected</span>'}
+    </div>
+  </div>`;
+}
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+</script>
+</body>
+</html>

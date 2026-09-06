@@ -1,0 +1,17 @@
+entrypoint = "backend/main.py"
+run = "uvicorn backend.main:app --host 0.0.0.0 --port 8000"
+modules = ["python-3.12"]
+
+[nix]
+channel = "stable-24_05"
+
+[[ports]]
+localPort = 8000
+externalPort = 80
+
+[env]
+PYTHONUNBUFFERED = "1"
+
+[deployment]
+run = ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port 8000"]
+deploymentTarget = "cloudrun"
